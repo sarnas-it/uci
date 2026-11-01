@@ -148,11 +148,14 @@ func TestXdgUserDir(t *testing.T) {
 	dir := t.TempDir()
 	home := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	// os.UserHomeDir: на Linux читает HOME, на Windows — USERPROFILE.
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	os.WriteFile(filepath.Join(dir, "user-dirs.dirs"),
 		[]byte("XDG_DESKTOP_DIR=\"$HOME/Desktop\"\nXDG_DOWNLOAD_DIR=\"$HOME/Загрузки\"\n"), 0o644)
-	if got := xdgUserDir("DOWNLOAD"); got != filepath.Join(home, "Загрузки") {
-		t.Errorf("xdgUserDir(DOWNLOAD) = %q; want %q", got, filepath.Join(home, "Загрузки"))
+	// xdgUserDir подставляет $HOME строкой, слэши остаются прямыми на всех ОС.
+	if got, want := xdgUserDir("DOWNLOAD"), home+"/Загрузки"; got != want {
+		t.Errorf("xdgUserDir(DOWNLOAD) = %q; want %q", got, want)
 	}
 	if got := xdgUserDir("MUSIC"); got != "" {
 		t.Errorf("xdgUserDir(MUSIC) = %q; want пусто", got)
