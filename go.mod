@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/JohannesKaufmann/html-to-markdown v1.6.0
 	github.com/go-shiori/go-readability v0.0.0-20251205110129-5db1dc9836f0
+	github.com/ulikunitz/xz v0.5.17
 )
 
 require (

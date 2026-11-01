@@ -88,10 +88,10 @@ func lookTool(name string) string {
 	var extra []string
 	switch runtime.GOOS {
 	case "windows":
-		extra = []string{filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links")}
+		extra = []string{filepath.Join(os.Getenv("LOCALAPPDATA"), "Microsoft", "WinGet", "Links"), installDir()}
 		name += ".exe"
 	case "darwin":
-		extra = []string{"/opt/homebrew/bin", "/usr/local/bin", filepath.Join(home, ".deno", "bin")}
+		extra = []string{installDir(), "/opt/homebrew/bin", "/usr/local/bin", filepath.Join(home, ".deno", "bin")}
 	default:
 		extra = []string{filepath.Join(home, ".local", "bin"), filepath.Join(home, ".deno", "bin"), "/usr/local/bin", "/snap/bin"}
 	}
