@@ -19,7 +19,7 @@ const usage = `uci — одна ссылка, и она скачивается: 
 
 Использование:
   uci [флаги] <ссылка>
-  uci doctor
+  uci doctor [--yes]
   uci help
 
 Флаги:
@@ -30,7 +30,8 @@ const usage = `uci — одна ссылка, и она скачивается: 
                          качество видео (по умолчанию 1080p)
 
 Зависимости-«движки»: yt-dlp (видео), ffmpeg (склейка), gallery-dl (галереи),
-SingleFile + Chrome (страницы целиком). "uci doctor" проверит окружение.
+SingleFile + Chrome (страницы целиком). "uci doctor" проверит окружение
+и сам поставит недостающее (с --yes — без вопросов).
 `
 
 func main() {
@@ -44,7 +45,7 @@ func run(args []string) int {
 			fmt.Print(usage)
 			return 0
 		case "doctor":
-			return doctor()
+			return doctor(args[1:])
 		}
 	}
 	flags := flag.NewFlagSet("uci", flag.ContinueOnError)
@@ -148,24 +149,40 @@ func get(rawURL string, forced ContentType, destDir, quality string) error {
 	return nil
 }
 
-// doctor проверяет окружение и печатает команды установки недостающего.
-func doctor() int {
+// toolSpec — движок, который doctor проверяет и (если install != nil) ставит сам.
+type toolSpec struct {
+	name     string
+	required bool
+	why      string
+	install  func(dir string) error
+}
+
+func toolSpecs() []toolSpec {
+	return []toolSpec{
+		{"yt-dlp", true, "скачивание видео", installYtDlp},
+		{"ffmpeg", true, "склейка видео+аудио в 1080p и выше", installFFmpeg},
+		{"deno", false, "JS-рантайм для yt-dlp (YouTube без него режет форматы)", installDeno},
+		{"gallery-dl", false, "альбомы и галереи картинок", installGalleryDl},
+		{"single-file", false, "сохранение страниц целиком", installSingleFile},
+		{"google-chrome", false, "движок для SingleFile", nil},
+	}
+}
+
+// doctor проверяет окружение и с согласия пользователя ставит недостающее.
+// --yes / -y — ставить всё недостающее без вопроса.
+func doctor(args []string) int {
+	yes := false
+	for _, arg := range args {
+		if arg == "--yes" || arg == "-y" {
+			yes = true
+		}
+	}
 	fmt.Printf("uci doctor · платформа: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 	fmt.Printf("✓ папка загрузок: %s\n", downloadsDir())
-	missing := 0
-	tools := []struct {
-		name     string
-		required bool
-		why      string
-	}{
-		{"yt-dlp", true, "скачивание видео"},
-		{"ffmpeg", true, "склейка видео+аудио в 1080p и выше"},
-		{"deno", false, "JS-рантайм для yt-dlp (YouTube без него режет форматы)"},
-		{"gallery-dl", false, "альбомы и галереи картинок"},
-		{"single-file", false, "сохранение страниц целиком"},
-		{"google-chrome", false, "движок для SingleFile"},
-	}
-	for _, tool := range tools {
+
+	missingRequired := 0
+	var missing []toolSpec
+	for _, tool := range toolSpecs() {
 		if path := lookTool(tool.name); path != "" {
 			fmt.Printf("✓ %s — %s\n", tool.name, path)
 			continue
@@ -173,15 +190,65 @@ func doctor() int {
 		mark, label := "○", "не обязателен"
 		if tool.required {
 			mark, label = "✗", "нужен"
-			missing++
+			missingRequired++
 		}
-		fmt.Printf("%s %s (%s, %s) — установка: %s\n", mark, tool.name, tool.why, label, installHint(tool.name))
+		fmt.Printf("%s %s (%s, %s)\n", mark, tool.name, tool.why, label)
+		missing = append(missing, tool)
+	}
+	if len(missing) == 0 {
+		fmt.Println("\nВсё на месте, можно качать: uci <ссылка>")
+		return 0
+	}
+
+	if !yes {
+		if !stdinIsTTY() {
+			fmt.Printf("\nНе хватает инструментов, а я не в терминале — перезапустите: uci doctor --yes\n")
+			return 1
+		}
+		fmt.Printf("\nУстановить недостающее в %s? [y/N] ", installDir())
+		var answer string
+		fmt.Scanln(&answer)
+		yes = strings.EqualFold(strings.TrimSpace(answer), "y")
+	}
+	if !yes {
+		fmt.Println("Установка отменена. Ручные команды:")
+		for _, tool := range missing {
+			fmt.Printf("  %s: %s\n", tool.name, installHint(tool.name))
+		}
+		return 1
+	}
+
+	dir := installDir()
+	for _, tool := range missing {
+		if tool.install == nil {
+			fmt.Printf("○ %s — автоматически не ставится, установите вручную: %s\n", tool.name, installHint(tool.name))
+			continue
+		}
+		fmt.Printf("→ ставлю %s…\n", tool.name)
+		if err := tool.install(dir); err != nil {
+			fmt.Printf("✗ %s — не получилось: %v\n  вручную: %s\n", tool.name, err, installHint(tool.name))
+			continue
+		}
+		if path := lookTool(tool.name); path != "" {
+			fmt.Printf("✓ %s — %s\n", tool.name, path)
+			if tool.required {
+				missingRequired--
+			}
+		} else {
+			fmt.Printf("⚠ %s поставлен в %s, но не виден — добавьте %s в PATH\n", tool.name, dir, dir)
+		}
 	}
 	fmt.Println()
-	if missing > 0 {
-		fmt.Printf("Не хватает %d обязательных инструментов.\n", missing)
+	if missingRequired > 0 {
+		fmt.Printf("Не хватает %d обязательных инструментов.\n", missingRequired)
 		return 1
 	}
 	fmt.Println("Обязательное на месте, можно качать: uci <ссылка>")
 	return 0
+}
+
+// stdinIsTTY — работаем ли мы в интерактивном терминале (а не в pipe/cron).
+func stdinIsTTY() bool {
+	info, err := os.Stdin.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
