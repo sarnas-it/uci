@@ -1,0 +1,43 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build binaries and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - run: go vet ./...
+      - run: go test ./...
+      - run: make build
+      - name: package
+        shell: bash
+        run: |
+          cd bin
+          for f in uci-*; do
+            if [[ $f == *.exe ]]; then
+              zip -q "../$f.zip" "$f"
+            else
+              tar -czf "../$f.tar.gz" "$f"
+            fi
+          done
+      - name: checksums
+        shell: bash
+        run: sha256sum uci-*.tar.gz uci-*.zip > checksums.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            uci-*.tar.gz
+            uci-*.zip
+            checksums.txt
