@@ -1,13 +1,25 @@
-# uci — Universal Content Intake
+# Universal Content Intake
 
-Одна ссылка → скачанное содержимое: видео, документ, картинки, статья или страница целиком.
+**Universal Content Intake** (команда `uci`) — кроссплатформенный загрузчик контента:
+одна ссылка → скачанное содержимое: видео, документ, картинки, статья или страница целиком.
 Результат складывается в папку загрузок, рядом кладётся короткий `*.info.md`
 (источник, автор, исходная ссылка).
 
-Кроссплатформенный бинарный порт ядра-загрузчика
-[YIAN6557/universal-content-intake](https://github.com/YIAN6557/universal-content-intake)
-(Go, статический бинарь: Linux / macOS / Windows). Автомониторинг, субтитры и облачная
-часть оригинала **не портированы** — это только загрузчик.
+Это самостоятельная Go-реализация ядра-загрузчика проекта
+[YIAN6557/universal-content-intake](https://github.com/YIAN6557/universal-content-intake),
+собранная в статический бинарь под Linux / macOS / Windows (у оригинала — Python,
+только macOS и Windows). Автомониторинг, субтитры и облачная часть оригинала
+**не входят** — это только загрузчик.
+
+## Установка
+
+Готовые бинари — на странице [релизов](https://github.com/sarnas-it/uci/releases):
+
+```bash
+# Linux (amd64)
+curl -L https://github.com/sarnas-it/uci/releases/download/v0.1.0/uci-linux-amd64.tar.gz | tar xz
+sudo install uci-linux-amd64 /usr/local/bin/uci
+```
 
 ## Использование
 
